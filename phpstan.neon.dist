@@ -5,3 +5,5 @@ parameters:
         - tests
     excludePaths:
         - tests/Architecture/samples
+        - tests/Architecture/modules-good
+        - tests/Architecture/modules-bad

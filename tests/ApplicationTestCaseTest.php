@@ -52,6 +52,23 @@ final class ApplicationTestCaseTest extends ApplicationTestCase
         }
     }
 
+    public function testFormsAreSubmittedUrlEncoded(): void
+    {
+        $this->http()->withHeader('X-Tenant', 'north')->submit('/patients?step=2', ['name' => 'Ada & Grace', 'tags' => ['a', 'b']])
+            ->assertOk()
+            ->assertJsonPath('method', 'POST')
+            ->assertJsonPath('contentType', 'application/x-www-form-urlencoded')
+            ->assertJsonPath('accept', 'text/html')
+            ->assertJsonPath('body', 'name=Ada+%26+Grace&tags%5B0%5D=a&tags%5B1%5D=b')
+            ->assertJsonPath('parsed', ['name' => 'Ada & Grace', 'tags' => ['a', 'b']])
+            ->assertJsonPath('query', ['step' => '2'])
+            ->assertJsonPath('tenant', 'north');
+
+        $this->http()->submit('/x', [], 'PUT', ['Accept' => 'application/json'])
+            ->assertJsonPath('method', 'PUT')
+            ->assertJsonPath('accept', 'application/json');
+    }
+
     public function testBodiesAndHeaders(): void
     {
         $this->http()->post('/patients', ['name' => 'Ada', 'height' => 1.7])

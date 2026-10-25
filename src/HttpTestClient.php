@@ -100,4 +100,21 @@ final readonly class HttpTestClient
 
         return new TestResponse($this->kernel->handle($request));
     }
+
+    /**
+     * Submit an HTML form: the fields are sent URL-encoded (and set as the
+     * parsed body), and HTML is accepted unless another Accept header is given.
+     *
+     * @param array<string, string|list<string>> $fields
+     * @param array<string, string> $headers
+     */
+    public function submit(string $uri, array $fields, string $method = 'POST', array $headers = []): TestResponse
+    {
+        $headers = [...$this->headers, 'Accept' => 'text/html', 'Content-Type' => 'application/x-www-form-urlencoded', ...$headers];
+        $request = new ServerRequest($method, $uri, $headers, http_build_query($fields));
+
+        parse_str($request->getUri()->getQuery(), $query);
+
+        return new TestResponse($this->kernel->handle($request->withQueryParams($query)->withParsedBody($fields)));
+    }
 }

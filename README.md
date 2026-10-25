@@ -42,6 +42,8 @@ final class PatientApiTest extends ApplicationTestCase
   - An array body is sent as JSON, and `Accept: application/json` is the
     default.
   - `withHeader()` and `withToken()` return a new client.
+  - `submit($uri, $fields)` posts an HTML form: URL-encoded, with
+    `Accept: text/html`.
 - **Responses:** `TestResponse` offers `status()`, `header()`, `body()`,
   `json()`, `jsonPath('data.items.0.id')` and assertions for the common
   statuses, headers, JSON subsets and paths.
@@ -59,6 +61,31 @@ $events->assertNotDispatched(PatientDeleted::class);
 ```
 
 ## Architecture rules
+
+For a modular application, `ModuleRules` applies Zana's dependency rules to
+every module in a directory, including modules added later:
+
+```php
+use ArchitectureAssertions;
+
+public function testEveryModuleFollowsTheDependencyRules(): void
+{
+    $this->assertModuleArchitecture(ModuleRules::for(__DIR__ . '/../modules'));
+}
+```
+
+- **Inside each module:**
+  - the domain uses only zana/ddd;
+  - the application uses its domain, module contracts, ddd, mediator,
+    validation, serialization attributes, `#[AsListener]` and the PSR log
+    and event interfaces;
+  - infrastructure never uses presentation;
+  - presentation never uses the domain or infrastructure;
+  - contracts are plain PHP.
+- **Between modules:** only `Contracts` may be used.
+- **Extending:** `->allow('Domain', 'Brick\Money')` lets a layer use more.
+
+For other rules, write them directly:
 
 ```php
 use ArchitectureAssertions;

@@ -3,9 +3,14 @@
 All Zana packages share one version number and are released together. A release that did
 not change this package is not listed.
 
-## 2.0.0 — 2026-10-26
+## 2.1.0 — unreleased
 
-The final 2.0 release. No changes since 2.0.0-rc.1.
+### Added
+
+- `browser()`, `assertSee()`, `assertDontSee()`, `assertRedirect()`, `assertSelector()`, and forms:
+  `HttpTestClient::form()->fill()->submit()` (FE-08).
+- `withConfig()` and `createApplicationBuilder()` (FE-09).
+- `assertMailSent()` and `assertNoMailSent()` with mj-zana/communication.
 
 ## 2.0.0-beta.3 — 2026-10-25
 

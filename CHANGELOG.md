@@ -12,6 +12,10 @@ not change this package is not listed.
 - `withConfig()` and `createApplicationBuilder()` (FE-09).
 - `assertMailSent()` and `assertNoMailSent()` with mj-zana/communication.
 
+## 2.0.0 — 2026-10-26
+
+The final 2.0 release. No changes since 2.0.0-rc.1.
+
 ## 2.0.0-beta.3 — 2026-10-25
 
 ### Added

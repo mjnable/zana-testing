@@ -152,6 +152,68 @@ final class TestResponse
     }
 
     /**
+     * The body contains $text, HTML-escaped unless $escape is false, as a
+     * page shows it: assertSee('Tom & Jerry') finds "Tom &amp; Jerry".
+     */
+    public function assertSee(string $text, bool $escape = true): self
+    {
+        $needle = $escape ? htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : $text;
+        Assert::assertStringContainsString($needle, $this->body(), "The response does not contain \"{$text}\":\n" . $this->excerpt());
+
+        return $this;
+    }
+
+    public function assertDontSee(string $text, bool $escape = true): self
+    {
+        $needle = $escape ? htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : $text;
+        Assert::assertStringNotContainsString($needle, $this->body(), "The response contains \"{$text}\".");
+
+        return $this;
+    }
+
+    /**
+     * A redirect (3xx with a Location), to $to when given.
+     */
+    public function assertRedirect(?string $to = null): self
+    {
+        $status = $this->status();
+        Assert::assertTrue($status >= 300 && $status < 400 && $this->response->hasHeader('Location'), "Expected a redirect, got {$status}:\n" . $this->excerpt());
+        if ($to !== null) {
+            Assert::assertSame($to, $this->header('Location'), 'Unexpected redirect target.');
+        }
+
+        return $this;
+    }
+
+    /**
+     * At least one element matches the CSS selector, and contains $text in
+     * its text when given (whitespace collapsed).
+     */
+    public function assertSelector(string $css, ?string $text = null): self
+    {
+        $elements = iterator_to_array($this->document()->querySelectorAll($css));
+        Assert::assertNotEmpty($elements, "No element matches \"{$css}\":\n" . $this->excerpt());
+
+        if ($text !== null) {
+            $texts = array_map(static fn (\Dom\Element $e): string => trim((string) preg_replace('/\s+/u', ' ', (string) $e->textContent)), $elements);
+            Assert::assertNotEmpty(
+                array_filter($texts, static fn (string $t): bool => str_contains($t, $text)),
+                "No \"{$css}\" element contains \"{$text}\"; found: " . json_encode($texts, JSON_UNESCAPED_UNICODE)
+            );
+        }
+
+        return $this;
+    }
+
+    /**
+     * The body parsed as HTML.
+     */
+    public function document(): \Dom\HTMLDocument
+    {
+        return \Dom\HTMLDocument::createFromString($this->body() === '' ? '<!doctype html><html></html>' : $this->body(), LIBXML_NOERROR);
+    }
+
+    /**
      * @param array<mixed> $subset
      */
     private static function mismatch(array $subset, mixed $actual, string $path): ?string

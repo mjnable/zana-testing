@@ -7,14 +7,19 @@
     "require": {
         "php": "^8.5",
         "mj-zana/console": "^2.0",
-        "mj-zana/core": "^2.0",
+        "mj-zana/core": "^2.1",
         "mj-zana/http": "^2.0",
         "nyholm/psr7": "^1.8",
         "phpunit/phpunit": "^11.5",
         "psr/event-dispatcher": "^1.0"
     },
     "require-dev": {
+        "mj-zana/communication": "^2.1",
+        "mj-zana/routing": "^2.1",
         "phpstan/phpstan": "^2.1"
+    },
+    "suggest": {
+        "mj-zana/communication": "For assertMailSent() and assertNoMailSent()"
     },
     "autoload": {
         "psr-4": {
@@ -28,12 +33,14 @@
         "files": ["tests/Fixtures.php"]
     },
     "repositories": [
-        { "type": "path", "url": "../zana-container", "options": { "symlink": true, "versions": { "mj-zana/container": "2.0.0" } } },
-        { "type": "path", "url": "../zana-configuration", "options": { "symlink": true, "versions": { "mj-zana/configuration": "2.0.0" } } },
-        { "type": "path", "url": "../zana-core", "options": { "symlink": true, "versions": { "mj-zana/core": "2.0.0" } } },
-        { "type": "path", "url": "../zana-ddd", "options": { "symlink": true, "versions": { "mj-zana/ddd": "2.0.0" } } },
-        { "type": "path", "url": "../zana-http", "options": { "symlink": true, "versions": { "mj-zana/http": "2.0.0" } } },
-        { "type": "path", "url": "../zana-console", "options": { "symlink": true, "versions": { "mj-zana/console": "2.0.0" } } }
+        { "type": "path", "url": "../zana-container", "options": { "symlink": true, "versions": { "mj-zana/container": "2.1.0" } } },
+        { "type": "path", "url": "../zana-configuration", "options": { "symlink": true, "versions": { "mj-zana/configuration": "2.1.0" } } },
+        { "type": "path", "url": "../zana-core", "options": { "symlink": true, "versions": { "mj-zana/core": "2.1.0" } } },
+        { "type": "path", "url": "../zana-ddd", "options": { "symlink": true, "versions": { "mj-zana/ddd": "2.1.0" } } },
+        { "type": "path", "url": "../zana-http", "options": { "symlink": true, "versions": { "mj-zana/http": "2.1.0" } } },
+        { "type": "path", "url": "../zana-console", "options": { "symlink": true, "versions": { "mj-zana/console": "2.1.0" } } },
+        { "type": "path", "url": "../zana-communication", "options": { "symlink": true, "versions": { "mj-zana/communication": "2.1.0" } } },
+        { "type": "path", "url": "../zana-routing", "options": { "symlink": true, "versions": { "mj-zana/routing": "2.1.0" } } }
     ],
     "scripts": {
         "test": "phpunit",

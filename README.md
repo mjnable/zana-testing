@@ -48,6 +48,31 @@ final class PatientApiTest extends ApplicationTestCase
   `json()`, `jsonPath('data.items.0.id')` and assertions for the common
   statuses, headers, JSON subsets and paths.
 
+## Websites
+
+```php
+$this->browser()->get('/en/about')->assertOk()->assertSee('Tom & Jerry')->assertSelector('h1', 'About us');
+
+$this->browser()->form('/en/contact')         // loads the page, keeps hidden fields such as CSRF tokens
+    ->fill(['name' => 'Ada', 'message' => 'Hello'])
+    ->submit()
+    ->assertRedirect('/en/contact/thanks');
+
+$this->assertMailSent(fn (Message $m): bool => $m->subject === 'Contact from Ada');
+```
+
+- **`browser()`:** a client that accepts HTML.
+- **HTML assertions:** `assertSee()` and `assertDontSee()` compare
+  HTML-escaped text by default. `assertSelector()` uses CSS selectors through
+  PHP's `Dom\HTMLDocument`. `assertRedirect()` checks a redirect.
+- **Mail:** `assertMailSent()` and `assertNoMailSent()` need
+  `mj-zana/communication` with `mail.dsn: memory://`.
+- **Configuration per test:** implement `createApplicationBuilder()`
+  instead of `createApplication()`, then call `$this->withConfig(['site.url' => '...'])`.
+  The application is rebuilt for that test only.
+- **Environment:** in the `testing` environment, `.env.testing` replaces
+  `.env` when it exists, so a developer's `.env` never leaks into tests.
+
 ## Events
 
 Register an `EventRecorder` as the PSR-14 dispatcher of the test

@@ -117,4 +117,15 @@ final readonly class HttpTestClient
 
         return new TestResponse($this->kernel->handle($request->withQueryParams($query)->withParsedBody($fields)));
     }
+
+    /**
+     * Load a page and read its form ("form" by default), with every field's
+     * current value, hidden fields such as CSRF tokens included.
+     */
+    public function form(string $uri, ?string $selector = null): TestForm
+    {
+        $page = $this->get($uri, headers: ['Accept' => 'text/html'])->assertOk();
+
+        return TestForm::fromResponse($this, $page, $uri, $selector);
+    }
 }

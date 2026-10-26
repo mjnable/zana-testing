@@ -3,6 +3,15 @@
 All Zana packages share one version number and are released together. A release that did
 not change this package is not listed.
 
+## 2.4.0 — unreleased
+
+### Added
+
+- `TestForm::check()`, `uncheck()` and `choose()`: tick checkboxes and select radio buttons in form
+  tests, as a visitor does. `fromResponse()` records every checkbox and radio button with the values
+  it offers (`TestForm::$choices`), ticked or not, and `fill()` accepts a list for a `name[]` group.
+  A box, a name or a value the page does not have fails the test (FE-39).
+
 ## 2.3.0 — 2026-10-26
 
 ### Changed

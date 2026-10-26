@@ -62,6 +62,9 @@ $this->assertMailSent(fn (Message $m): bool => $m->subject === 'Contact from Ada
 ```
 
 - **`browser()`:** a client that accepts HTML.
+- **Checkboxes and radio buttons (2.4):** `check('consent')`, `check('needs[]', 'hosting')`,
+  `uncheck()` and `choose('budget', 'medium')` tick them as a visitor does; `fill()` takes a list for a
+  `name[]` group. A box, a name or a value the page does not have fails the test.
 - **HTML assertions:** `assertSee()` and `assertDontSee()` compare
   HTML-escaped text by default. `assertSelector()` uses CSS selectors through
   PHP's `Dom\HTMLDocument`. `assertRedirect()` checks a redirect.

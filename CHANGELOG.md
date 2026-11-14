@@ -16,7 +16,8 @@ not change this package is not listed.
   - a route with `#[RateLimit]`: the limit plus one request must not all reach the handler;
   - every route anyone may reach: script, SQL, template, traversal, NUL and long payloads, a list where a value is
     expected, a body that is not JSON and a 2 MB body must not cause a server error, and an HTML page must not print a
-    script payload as it was sent.
+    script payload as it was sent. A PHP warning that hostile input causes in the application's own code fails too.
+    An ordinary request goes first: if it already fails, that one failure is reported, not each payload.
   A probe, the route's last middleware, tells whether a request reached the handler; for the access, CSRF and rate
   limit attacks it answers itself, so the handler never runs. `except: ['POST /webhook' => 'reason']` leaves a route
   out, with the reason in the report. Attacks as a signed-in user are not made: signing in belongs to the application.

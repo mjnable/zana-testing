@@ -65,6 +65,14 @@ final class RouteAttacksTest extends TestCase
         $this->assertStringContainsString('✘ GET /manage — an anonymous request', $report->describe());
     }
 
+    public function testAnAccessRuleNothingEnforcesFails(): void
+    {
+        $report = (new RouteAttacks($this->app(static fn (Router $r) => $r->get('/admin', #[RequiresAuthentication] static fn (): string => 'payroll'))))->run();
+
+        $this->assertSame('reached the handler, although the route needs a user (AuthorizationMiddleware is not on the route, so nothing enforces its access rule).', $report->failures[0]['detail']);
+        $this->assertSame('an anonymous request', $report->failures[0]['attack']);
+    }
+
     public function testHostileInputThatBreaksOrReflectsFails(): void
     {
         $report = (new RouteAttacks($this->app(static function (Router $r): void {

@@ -147,7 +147,7 @@ final class RouteAttacks
                 }
             };
 
-            if ($access !== null && $access->needsUser()) {
+            if ($access !== null && $access->claimsUser()) {   // what it says, tested against what it does
                 $probe->stop = true;
                 foreach ($methods as $method) {
                     $attacks = ['an anonymous request' => self::request($method, $path)];
@@ -158,7 +158,11 @@ final class RouteAttacks
                         $before = $probe->hits;
                         $response = $send($request);
                         if ($probe->hits > $before) {
-                            $report->fail("{$method} {$route->path}", $label, 'reached the handler, although the route needs a user' . ($access->application === null ? '' : " ({$access->application} is declared to refuse anonymous visitors)") . '.');
+                            $report->fail("{$method} {$route->path}", $label, 'reached the handler, although the route needs a user' . match (true) {
+                                $access->application !== null => " ({$access->application} is declared to refuse anonymous visitors)",
+                                !$access->authorized => ' (AuthorizationMiddleware is not on the route, so nothing enforces its access rule)',
+                                default => '',
+                            } . '.');
                         } elseif ($response === null) {
                             $report->fail("{$method} {$route->path}", $label, 'the kernel threw instead of answering.');
                         }

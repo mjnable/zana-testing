@@ -9,7 +9,8 @@ not change this package is not listed.
 
 - `assertRoutesWithstandAttacks()` in `ApplicationTestCase`, and `Security\RouteAttacks`: every route of the
   application attacked in memory (FE-68, layer 2 of ADR-033), so a new route is attacked as soon as it exists:
-  - a route that needs a user: an anonymous request and an expired session must not reach its handler, which also
+  - a route that says it needs a user (enforced or not): an anonymous request and an expired session must not reach
+    its handler, which also
     tests an application's own sign-in middleware declared in `security.access_middleware`;
   - a public route behind `CsrfMiddleware` that changes data: no token, a forged one, a cross-site `Origin`;
   - a route with `#[RateLimit]`: the limit plus one request must not all reach the handler;

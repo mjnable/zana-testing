@@ -23,9 +23,9 @@ not change this package is not listed.
   out, with the reason in the report.
 - As a signed-in user too, with `signIn: fn ($request) => …`, which the application writes, as only it knows how its
   users sign in, and `holding: [...]`, the permissions that user holds: a route that needs another must refuse them; a
-  route that needs only a user, or held permissions,
-  user gets the CSRF attacks, unless the sign-in is a bearer token, and the hostile input. When no signed-in request
-  gets through to any such route, the sign-in itself fails, so the attacks cannot pass by proving nothing. One user
+  route that needs only a user, or permissions it holds, gets the CSRF attacks, unless the sign-in is a bearer token,
+  and the hostile input. When no signed-in request gets through to any such route, the sign-in itself fails, so the
+  attacks cannot pass by proving nothing; a route that refuses a permission `holding` names is reported too. One user
   reaching another's data stays for the application's own tests.
 - Who may reach a route is read with mj-zana/security's `RouteAccess` (2.22), as `check` reads it; it conflicts with
   mj-zana/security below 2.22.

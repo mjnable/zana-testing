@@ -162,7 +162,7 @@ final class RouteAttacks
                                 $access->application !== null => " ({$access->application} is declared to refuse anonymous visitors)",
                                 !$access->authorized => ' (AuthorizationMiddleware is not on the route, so nothing enforces its access rule)',
                                 default => '',
-                            } . '.');
+                            } . '.' . ($access->public === null ? '' : ' It also says it is public: if its handler checks access itself, such as a token in the link, move it to a class without #[RequiresAuthentication] or #[RequiresPermission].'));
                         } elseif ($response === null) {
                             $report->fail("{$method} {$route->path}", $label, 'the kernel threw instead of answering.');
                         }

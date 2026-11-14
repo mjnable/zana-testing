@@ -27,6 +27,12 @@ use Zana\Http\HttpKernel;
  * Implement createApplicationBuilder() to use withConfig(); implementing
  * createApplication() still works. Subclasses that override setUp() or
  * tearDown() must call the parent.
+ *
+ * The testing environment reads .env.testing, never the developer's .env. A
+ * test that builds another environment, e.g. production to prove a deployment
+ * check, reads .env unless it calls withoutDotEnv() (core 2.20, FE-73):
+ *
+ *     Bootstrap::builder(dirname(__DIR__))->withEnvironment('production')->withoutDotEnv()
  */
 abstract class ApplicationTestCase extends TestCase
 {

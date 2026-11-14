@@ -3,6 +3,13 @@
 All Zana packages share one version number and are released together. A release that did
 not change this package is not listed.
 
+## 2.20.0 — Unreleased
+
+### Changed
+
+- `ApplicationTestCase` documents `withoutDotEnv()` (core 2.20, FE-73) for tests that build another environment,
+  such as production, so the developer's `.env` cannot change their result.
+
 ## 2.4.0 — 2026-10-26
 
 ### Added

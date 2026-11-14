@@ -7,6 +7,7 @@ namespace Zana\Testing\Security;
 use Nyholm\Psr7\ServerRequest;
 use Nyholm\Psr7\Stream;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use Zana\Configuration\ConfigurationInterface;
 use Zana\Core\ApplicationInterface;
 use Zana\Http\HttpKernel;
@@ -35,9 +36,14 @@ use Zana\Testing\Security\Internal\HandlerProbe;
  * route's last middleware; for the access and CSRF attacks it answers itself,
  * so the handler never runs and nothing is written.
  *
- * Not covered, and why: attacks as a signed-in user, such as CSRF on a route
- * that needs one, or one user reaching another's data. How to sign a user in
- * belongs to the application, and so do its permissions.
+ * As a signed-in user too, when signIn() says how to sign one in (a user
+ * without roles): a route that needs a permission must refuse them; a route
+ * that needs only a user gets the CSRF attacks (unless the sign-in is a bearer
+ * token, which CSRF cannot reach) and the hostile input. When no signed-in
+ * request gets through to any such route, the sign-in itself fails.
+ *
+ * Not covered, and why: one user reaching another's data. Which records
+ * belong to whom is the application's knowledge, for its own tests.
  */
 final class RouteAttacks
 {
@@ -66,8 +72,26 @@ final class RouteAttacks
     /** @var array<string, string> */
     private array $except = [];
 
+    /** @var (\Closure(ServerRequestInterface): ServerRequestInterface)|null */
+    private ?\Closure $signIn = null;
+
     public function __construct(private readonly ApplicationInterface $application)
     {
+    }
+
+    /**
+     * Attack as a signed-in user too (2.22): $signIn turns an anonymous request
+     * into one of a user of the application, e.g. by adding a bearer token or
+     * a session cookie. Sign in a user without roles, so that a route needing
+     * a permission must refuse them.
+     *
+     * @param \Closure(ServerRequestInterface): ServerRequestInterface $signIn
+     */
+    public function signIn(\Closure $signIn): self
+    {
+        $this->signIn = $signIn;
+
+        return $this;
     }
 
     /**
@@ -116,6 +140,8 @@ final class RouteAttacks
             }
         }
 
+        $signedInReached = false;   // a signed-in request got through to a route that needs only a user
+        $userOnlyRoutes = 0;
         foreach ($router->routes() as $route) {
             $methods = array_values(array_diff($route->methods, ['HEAD', 'OPTIONS']));
             if ($methods === []) {
@@ -138,7 +164,7 @@ final class RouteAttacks
             $route->middleware($probe);
             $report->routes++;
             $access = $security ? RouteAccess::of($route, $global, $declared) : null;
-            $send = function (ServerRequest $request) use ($kernel, $report): ?ResponseInterface {
+            $send = function (ServerRequestInterface $request) use ($kernel, $report): ?ResponseInterface {
                 $report->requests++;
                 try {
                     return $kernel->handle($request);
@@ -168,8 +194,11 @@ final class RouteAttacks
                         }
                     }
                 }
+                if ($this->signIn !== null) {
+                    $this->attackSignedIn($report, $send, $probe, $access, $route, $path, $methods, $signedInReached, $userOnlyRoutes);
+                }
                 $probe->stop = false;   // from here on the route behaves as before
-                continue;   // signing in belongs to the application: nothing more to attack here
+                continue;
             }
 
             if ($access !== null && $access->public !== null && $access->changesData && $access->csrfProtected) {
@@ -207,49 +236,134 @@ final class RouteAttacks
 
             // Hostile input, with the handler running: anyone may send it.
             $probe->stop = false;
-            foreach ($methods as $method) {
-                // An ordinary request first: if it already fails, hostile input is not the cause.
-                $ordinary = $send(in_array($method, ['GET', 'DELETE'], true) ? self::request($method, $path) : self::form($method, $path, []));
-                if ($ordinary === null || $ordinary->getStatusCode() >= 500) {
-                    $report->fail("{$method} {$route->path}", 'an ordinary request', ($ordinary === null ? 'the kernel threw' : "answered {$ordinary->getStatusCode()}") . " to {$method} {$path}, before any hostile input, so hostile input was not tried. "
-                        . ($path === $route->path
-                            ? 'Check that the test environment has what the route needs, such as a service it calls.'
-                            : 'A value in its path that the application does not know should be answered with a 4xx, such as 404, not a server error; or the test environment lacks what the route needs.'));
-                    continue;
-                }
-                foreach (self::hostile($method, $path) as $label => $request) {
-                    $warnings = [];
-                    $previous = null;
-                    $previous = set_error_handler(function (int $level, string $message, string $file, int $line) use (&$warnings, &$previous): bool {
-                        // Even one silenced with @: hostile input reached code that did not expect it. error_reporting()
-                        // cannot tell, as test runners change it.
-                        if (!str_contains(str_replace('\\', '/', $file), '/vendor/')) {
-                            $warnings[] = "{$message} (" . basename($file) . ":{$line})";
-                        }
+            self::attackWithHostileInput($report, $send, $route, $path, $methods, null);
+        }
 
-                        return is_callable($previous) ? (bool) $previous($level, $message, $file, $line) : true;   // reported here, not printed
-                    }, E_WARNING | E_NOTICE | E_USER_WARNING | E_USER_NOTICE);
-                    try {
-                        $response = $send($request);
-                    } finally {
-                        restore_error_handler();
-                    }
-                    $where = "{$method} {$route->path}";
-                    if ($warnings !== []) {
-                        $report->fail($where, $label, 'caused a PHP warning in the application: ' . implode('; ', array_unique($warnings)) . '. Check the type of what the request sends before using it.');
-                    }
-                    if ($response === null) {
-                        $report->fail($where, $label, 'the kernel threw instead of answering.');
-                    } elseif ($response->getStatusCode() >= 500) {
-                        $report->fail($where, $label, "answered {$response->getStatusCode()}: hostile input caused a server error.");
-                    } elseif (str_contains(strtolower($response->getHeaderLine('Content-Type')), 'html') && str_contains((string) $response->getBody(), "<script>alert('" . self::MARKER . "')")) {
-                        $report->fail($where, $label, 'the page prints the script as it was sent: a visitor could be made to run it.');
+        if ($this->signIn !== null && $userOnlyRoutes > 0 && !$signedInReached) {
+            $report->fail('sign-in', 'the signIn function', "no signed-in request reached any of the {$userOnlyRoutes} route(s) that need only a user, so it does not sign a user in, and the signed-in attacks proved nothing.");
+        }
+
+        return $report;
+    }
+
+    /**
+     * The attacks as a signed-in user, without roles, on a route that says it needs a user.
+     *
+     * @param \Closure(ServerRequestInterface): ?ResponseInterface $send
+     * @param list<string> $methods
+     */
+    private function attackSignedIn(AttackReport $report, \Closure $send, HandlerProbe $probe, RouteAccess $access, Route $route, string $path, array $methods, bool &$reached, int &$userOnlyRoutes): void
+    {
+        $signIn = $this->signIn ?? throw new \LogicException('No signIn function.');
+        $bearer = str_starts_with(strtolower($signIn(self::request('GET', $path))->getHeaderLine('Authorization')), 'bearer ');
+
+        // A permission the user does not hold: the route must refuse them.
+        if ($access->permissions !== []) {
+            $probe->stop = true;
+            foreach ($methods as $method) {
+                $before = $probe->hits;
+                $send($signIn(in_array($method, ['GET', 'DELETE'], true) ? self::request($method, $path) : self::form($method, $path, [])));
+                if ($probe->hits > $before) {
+                    $report->fail("{$method} {$route->path}", 'a signed-in user without the permission', 'reached the handler, although the route needs ' . implode(', ', $access->permissions) . '. If the signed-in user holds it, sign in one without roles.');
+                }
+            }
+
+            return;
+        }
+
+        // The route needs only a user: a signed-in request must get through, or the attacks prove nothing. Behind
+        // CSRF, only a request that changes nothing, or a bearer token, is expected to get through.
+        $open = $access->csrfProtected && !$bearer ? array_values(array_intersect($methods, ['GET'])) : $methods;
+        if ($open !== []) {
+            $userOnlyRoutes++;
+            $probe->stop = true;
+            $before = $probe->hits;
+            $send($signIn(self::request($open[0], $path)));
+            if ($probe->hits > $before) {
+                $reached = true;
+            }
+        }
+
+        if ($access->changesData && $access->csrfProtected) {
+            if ($bearer) {
+                $report->skip("{$route->path}", 'not attacked for CSRF as a signed-in user: the signIn function uses a bearer token, which CSRF cannot reach');
+            } else {
+                $method = self::unsafe($methods);
+                foreach ([
+                    'no CSRF token, signed in' => [[], []],
+                    'a forged CSRF token, signed in' => [['_token' => 'forged.' . self::MARKER, '_form' => 'default'], []],
+                    'a cross-site request, signed in' => [['_token' => 'forged.' . self::MARKER, '_form' => 'default'], ['Origin' => 'https://attacker.example', 'Sec-Fetch-Site' => 'cross-site']],
+                ] as $label => [$fields, $headers]) {
+                    $before = $probe->hits;
+                    $send($signIn(self::form($method, $path, $fields, $headers)));
+                    if ($probe->hits > $before) {
+                        $report->fail("{$method} {$route->path}", $label, 'reached the handler: CsrfMiddleware did not refuse a request another site could make the user send.');
                     }
                 }
             }
         }
 
-        return $report;
+        // Hostile input from a signed-in user, with the handler running. Behind CSRF, a signed-in session's hostile
+        // form would be refused before the handler, so only the methods that change nothing, or a bearer token, run.
+        $probe->stop = false;
+        $hostileMethods = $access->csrfProtected && !$bearer
+            ? array_values(array_filter($methods, static fn (string $m): bool => in_array($m, ['GET'], true)))
+            : $methods;
+        self::attackWithHostileInput($report, $send, $route, $path, $hostileMethods, $signIn, ', signed in');
+    }
+
+    /**
+     * An ordinary request first, then every hostile one, with the handler running.
+     *
+     * @param \Closure(ServerRequestInterface): ?ResponseInterface $send
+     * @param list<string> $methods
+     * @param (\Closure(ServerRequestInterface): ServerRequestInterface)|null $signIn
+     */
+    private static function attackWithHostileInput(AttackReport $report, \Closure $send, Route $route, string $path, array $methods, ?\Closure $signIn, string $as = ''): void
+    {
+        $wrap = $signIn ?? static fn (ServerRequestInterface $request): ServerRequestInterface => $request;
+        foreach ($methods as $method) {
+            // An ordinary request first: if it already fails, hostile input is not the cause.
+            $ordinary = $send($wrap(in_array($method, ['GET', 'DELETE'], true) ? self::request($method, $path) : self::form($method, $path, [])));
+            if ($ordinary === null || $ordinary->getStatusCode() >= 500) {
+                $report->fail("{$method} {$route->path}", 'an ordinary request' . $as, ($ordinary === null ? 'the kernel threw' : "answered {$ordinary->getStatusCode()}") . " to {$method} {$path}, before any hostile input, so hostile input was not tried. "
+                    . ($path === $route->path
+                        ? 'Check that the test environment has what the route needs, such as a service it calls.'
+                        : 'A value in its path that the application does not know should be answered with a 4xx, such as 404, not a server error; or the test environment lacks what the route needs.'));
+                continue;
+            }
+            foreach (self::hostile($method, $path) as $label => $request) {
+                $request = $wrap($request);
+                $label .= $as;
+                $warnings = [];
+                $previous = null;
+                $previous = set_error_handler(function (int $level, string $message, string $file, int $line) use (&$warnings, &$previous): bool {
+                    // Even one silenced with @: hostile input reached code that did not expect it. error_reporting()
+                    // cannot tell, as test runners change it.
+                    if (!str_contains(str_replace('\\', '/', $file), '/vendor/')) {
+                        $warnings[] = "{$message} (" . basename($file) . ":{$line})";
+                    }
+
+                    return is_callable($previous) ? (bool) $previous($level, $message, $file, $line) : true;   // reported here, not printed
+                }, E_WARNING | E_NOTICE | E_USER_WARNING | E_USER_NOTICE);
+                try {
+                    $response = $send($request);
+                } finally {
+                    restore_error_handler();
+                }
+                $where = "{$method} {$route->path}";
+                if ($warnings !== []) {
+                    $report->fail($where, $label, 'caused a PHP warning in the application: ' . implode('; ', array_unique($warnings)) . '. Check the type of what the request sends before using it.');
+                }
+                if ($response === null) {
+                    $report->fail($where, $label, 'the kernel threw instead of answering.');
+                } elseif ($response->getStatusCode() >= 500) {
+                    $report->fail($where, $label, "answered {$response->getStatusCode()}: hostile input caused a server error.");
+                } elseif (str_contains(strtolower($response->getHeaderLine('Content-Type')), 'html') && str_contains((string) $response->getBody(), "<script>alert('" . self::MARKER . "')")) {
+                    $report->fail($where, $label, 'the page prints the script as it was sent: a visitor could be made to run it.');
+                }
+            }
+        }
     }
 
     /**

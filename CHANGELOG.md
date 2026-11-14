@@ -20,7 +20,12 @@ not change this package is not listed.
     An ordinary request goes first: if it already fails, that one failure is reported, not each payload.
   A probe, the route's last middleware, tells whether a request reached the handler; for the access, CSRF and rate
   limit attacks it answers itself, so the handler never runs. `except: ['POST /webhook' => 'reason']` leaves a route
-  out, with the reason in the report. Attacks as a signed-in user are not made: signing in belongs to the application.
+  out, with the reason in the report.
+- As a signed-in user too, with `signIn: fn ($request) => …`, which the application writes, as only it knows how its
+  users sign in (a user without roles): a route that needs a permission must refuse them; a route that needs only a
+  user gets the CSRF attacks, unless the sign-in is a bearer token, and the hostile input. When no signed-in request
+  gets through to any such route, the sign-in itself fails, so the attacks cannot pass by proving nothing. One user
+  reaching another's data stays for the application's own tests.
 - Who may reach a route is read with mj-zana/security's `RouteAccess` (2.22), as `check` reads it; it conflicts with
   mj-zana/security below 2.22.
 

@@ -156,11 +156,20 @@ abstract class ApplicationTestCase extends TestCase
      *         $this->assertRoutesWithstandAttacks(except: ['POST /webhook' => 'Signed by the payment provider']);
      *     }
      *
+     * To attack as a signed-in user too, say how to sign one in, a user without roles:
+     *
+     *     $this->assertRoutesWithstandAttacks(signIn: fn (ServerRequestInterface $r) => $r->withHeader('Authorization', "Bearer {$token}"));
+     *
      * @param array<string, string> $except Routes left out, each with the reason, which the report shows
+     * @param (\Closure(\Psr\Http\Message\ServerRequestInterface): \Psr\Http\Message\ServerRequestInterface)|null $signIn
      */
-    protected function assertRoutesWithstandAttacks(array $except = []): Security\AttackReport
+    protected function assertRoutesWithstandAttacks(array $except = [], ?\Closure $signIn = null): Security\AttackReport
     {
-        $report = (new Security\RouteAttacks($this->app()))->except($except)->run();
+        $attacks = (new Security\RouteAttacks($this->app()))->except($except);
+        if ($signIn !== null) {
+            $attacks->signIn($signIn);
+        }
+        $report = $attacks->run();
         $this->addToAssertionCount($report->requests);
         if (!$report->passed()) {
             Assert::fail($report->describe());

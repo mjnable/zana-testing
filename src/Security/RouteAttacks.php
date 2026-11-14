@@ -247,8 +247,14 @@ final class RouteAttacks
             return $route->path;
         }
         $values = [];
+        $patterns = $route->patterns();
         foreach ($matches[1] as $parameter) {
-            foreach (['1', 'test', '00000000-0000-4000-8000-000000000000', 'en', 'a1', str_repeat('a', 64)] as $sample) {
+            // A pattern that lists its values, such as "news|services", gives its own samples first.
+            $listed = array_values(array_filter(
+                explode('|', trim((string) ($patterns[$parameter] ?? ''), '^$()?:')),
+                static fn (string $value): bool => preg_match('/^[A-Za-z0-9_.~-]+$/', $value) === 1,
+            ));
+            foreach ([...$listed, '1', 'test', '00000000-0000-4000-8000-000000000000', 'en', 'a1', str_repeat('a', 64)] as $sample) {
                 $values[$parameter] = $sample;
                 $path = $route->buildPath($values + array_fill_keys($matches[1], $sample));
                 if ($route->matchPath($path) !== null) {

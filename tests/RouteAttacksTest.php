@@ -44,10 +44,12 @@ final class RouteAttacksTest extends TestCase
             $r->post('/tokens', #[PublicRoute(reason: 'Signing in')] #[RateLimit(max: 3, per: 60)] static fn (): string => 'token')->middleware(RateLimitMiddleware::class);
             $r->get('/search', #[PublicRoute(reason: 'Search')] static fn (ServerRequestInterface $request): ResponseInterface => new Response(200, ['Content-Type' => 'text/html'], '<p>' . htmlspecialchars(self::text($request->getQueryParams()['q'] ?? '')) . '</p>'));
             $r->get('/books/{id:\d+}', #[PublicRoute(reason: 'The catalogue')] static fn (int $id): string => "book {$id}");
+            $r->get('/admin/{section}', #[RequiresAuthentication] static fn (string $section): string => $section)->where('section', 'news|services')->middleware(AuthorizationMiddleware::class);
         })))->run();
 
         $this->assertTrue($report->passed(), $report->describe());
-        $this->assertSame(6, $report->routes);
+        $this->assertSame(7, $report->routes);
+        $this->assertSame([], $report->skipped, 'a pattern that lists its values gives the sample');
         $this->assertGreaterThan(40, $report->requests);
     }
 

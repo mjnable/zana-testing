@@ -146,6 +146,29 @@ abstract class ApplicationTestCase extends TestCase
         return $sent;
     }
 
+    /**
+     * Attack every route of the application (2.22, FE-68): see RouteAttacks.
+     * Run it in a test of its own: the attacks leave the routes as they were,
+     * but they send many requests and may write what anyone could.
+     *
+     *     public function testEveryRouteWithstandsTheBaselineAttacks(): void
+     *     {
+     *         $this->assertRoutesWithstandAttacks(except: ['POST /webhook' => 'Signed by the payment provider']);
+     *     }
+     *
+     * @param array<string, string> $except Routes left out, each with the reason, which the report shows
+     */
+    protected function assertRoutesWithstandAttacks(array $except = []): Security\AttackReport
+    {
+        $report = (new Security\RouteAttacks($this->app()))->except($except)->run();
+        $this->addToAssertionCount($report->requests);
+        if (!$report->passed()) {
+            Assert::fail($report->describe());
+        }
+
+        return $report;
+    }
+
     protected function assertNoMailSent(): void
     {
         Assert::assertSame(0, $this->mail()->count(), 'Expected no message, sent: ' . self::subjects($this->mail()->sent()));

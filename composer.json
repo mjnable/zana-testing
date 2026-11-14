@@ -16,10 +16,16 @@
     "require-dev": {
         "mj-zana/communication": "^2.1",
         "mj-zana/routing": "^2.1",
+        "mj-zana/security": "^2.22",
+        "mj-zana/session": "^2.2",
         "phpstan/phpstan": "^2.1"
     },
     "suggest": {
-        "mj-zana/communication": "For assertMailSent() and assertNoMailSent()"
+        "mj-zana/communication": "For assertMailSent() and assertNoMailSent()",
+        "mj-zana/security": "For the access, CSRF and rate-limit attacks of assertRoutesWithstandAttacks()"
+    },
+    "conflict": {
+        "mj-zana/security": "<2.22"
     },
     "autoload": {
         "psr-4": {
@@ -40,7 +46,9 @@
         { "type": "path", "url": "../zana-http", "options": { "symlink": true, "versions": { "mj-zana/http": "2.21.0" } } },
         { "type": "path", "url": "../zana-console", "options": { "symlink": true, "versions": { "mj-zana/console": "2.21.0" } } },
         { "type": "path", "url": "../zana-communication", "options": { "symlink": true, "versions": { "mj-zana/communication": "2.21.0" } } },
-        { "type": "path", "url": "../zana-routing", "options": { "symlink": true, "versions": { "mj-zana/routing": "2.21.0" } } }
+        { "type": "path", "url": "../zana-routing", "options": { "symlink": true, "versions": { "mj-zana/routing": "2.21.0" } } },
+        { "type": "path", "url": "../zana-security", "options": { "symlink": true, "versions": { "mj-zana/security": "2.22.0" } } },
+        { "type": "path", "url": "../zana-session", "options": { "symlink": true, "versions": { "mj-zana/session": "2.21.0" } } }
     ],
     "scripts": {
         "test": "phpunit",

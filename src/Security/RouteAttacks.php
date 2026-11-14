@@ -75,6 +75,9 @@ final class RouteAttacks
     /** @var (\Closure(ServerRequestInterface): ServerRequestInterface)|null */
     private ?\Closure $signIn = null;
 
+    /** @var list<string> The permissions the signed-in user holds */
+    private array $holding = [];
+
     public function __construct(private readonly ApplicationInterface $application)
     {
     }
@@ -82,14 +85,17 @@ final class RouteAttacks
     /**
      * Attack as a signed-in user too (2.22): $signIn turns an anonymous request
      * into one of a user of the application, e.g. by adding a bearer token or
-     * a session cookie. Sign in a user without roles, so that a route needing
-     * a permission must refuse them.
+     * a session cookie. $holding names the permissions that user holds; a
+     * route that needs another must refuse them. Sign in the user with the
+     * fewest permissions, ideally none, so that most routes are tried both ways.
      *
      * @param \Closure(ServerRequestInterface): ServerRequestInterface $signIn
+     * @param list<string> $holding
      */
-    public function signIn(\Closure $signIn): self
+    public function signIn(\Closure $signIn, array $holding = []): self
     {
         $this->signIn = $signIn;
+        $this->holding = $holding;
 
         return $this;
     }
@@ -240,7 +246,7 @@ final class RouteAttacks
         }
 
         if ($this->signIn !== null && $userOnlyRoutes > 0 && !$signedInReached) {
-            $report->fail('sign-in', 'the signIn function', "no signed-in request reached any of the {$userOnlyRoutes} route(s) that need only a user, so it does not sign a user in, and the signed-in attacks proved nothing.");
+            $report->fail('sign-in', 'the signIn function', "no signed-in request reached any of the {$userOnlyRoutes} route(s) the signed-in user may reach, so it does not sign a user in, or holding names a permission the user does not hold, and the signed-in attacks proved nothing.");
         }
 
         return $report;
@@ -258,20 +264,23 @@ final class RouteAttacks
         $bearer = str_starts_with(strtolower($signIn(self::request('GET', $path))->getHeaderLine('Authorization')), 'bearer ');
 
         // A permission the user does not hold: the route must refuse them.
-        if ($access->permissions !== []) {
+        $missing = array_values(array_diff($access->permissions, $this->holding));
+        if ($missing !== []) {
             $probe->stop = true;
             foreach ($methods as $method) {
                 $before = $probe->hits;
                 $send($signIn(in_array($method, ['GET', 'DELETE'], true) ? self::request($method, $path) : self::form($method, $path, [])));
                 if ($probe->hits > $before) {
-                    $report->fail("{$method} {$route->path}", 'a signed-in user without the permission', 'reached the handler, although the route needs ' . implode(', ', $access->permissions) . '. If the signed-in user holds it, sign in one without roles.');
+                    $report->fail("{$method} {$route->path}", 'a signed-in user without the permission', 'reached the handler, although the route needs ' . implode(', ', $missing) . ', which the signed-in user does not hold'
+                        . ($this->holding === [] ? '' : ' (it holds ' . implode(', ', $this->holding) . ')') . '. If it does hold it, name it in holding.');
                 }
             }
 
             return;
         }
 
-        // The route needs only a user: a signed-in request must get through, or the attacks prove nothing. Behind
+        // The route needs only a user, or permissions the user holds: a signed-in request must get through, or the
+        // attacks prove nothing. Behind
         // CSRF, only a request that changes nothing, or a bearer token, is expected to get through.
         $open = $access->csrfProtected && !$bearer ? array_values(array_intersect($methods, ['GET'])) : $methods;
         if ($open !== []) {
@@ -281,6 +290,8 @@ final class RouteAttacks
             $send($signIn(self::request($open[0], $path)));
             if ($probe->hits > $before) {
                 $reached = true;
+            } elseif ($access->permissions !== []) {
+                $report->fail("{$open[0]} {$route->path}", 'the permissions in holding', 'the signed-in user was refused, although holding says it holds ' . implode(', ', $access->permissions) . ', which the route needs: holding names a permission the user does not hold, or the route refuses one it should allow.');
             }
         }
 

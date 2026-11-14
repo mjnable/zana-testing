@@ -211,12 +211,33 @@ final class RouteAttacks
                 // An ordinary request first: if it already fails, hostile input is not the cause.
                 $ordinary = $send(in_array($method, ['GET', 'DELETE'], true) ? self::request($method, $path) : self::form($method, $path, []));
                 if ($ordinary === null || $ordinary->getStatusCode() >= 500) {
-                    $report->fail("{$method} {$route->path}", 'an ordinary request', ($ordinary === null ? 'the kernel threw' : "answered {$ordinary->getStatusCode()}") . " to {$method} {$path}, before any hostile input. A value in its path that the application does not know should be answered with a 4xx, such as 404, not a server error.");
+                    $report->fail("{$method} {$route->path}", 'an ordinary request', ($ordinary === null ? 'the kernel threw' : "answered {$ordinary->getStatusCode()}") . " to {$method} {$path}, before any hostile input, so hostile input was not tried. "
+                        . ($path === $route->path
+                            ? 'Check that the test environment has what the route needs, such as a service it calls.'
+                            : 'A value in its path that the application does not know should be answered with a 4xx, such as 404, not a server error; or the test environment lacks what the route needs.'));
                     continue;
                 }
                 foreach (self::hostile($method, $path) as $label => $request) {
-                    $response = $send($request);
+                    $warnings = [];
+                    $previous = null;
+                    $previous = set_error_handler(function (int $level, string $message, string $file, int $line) use (&$warnings, &$previous): bool {
+                        // Even one silenced with @: hostile input reached code that did not expect it. error_reporting()
+                        // cannot tell, as test runners change it.
+                        if (!str_contains(str_replace('\\', '/', $file), '/vendor/')) {
+                            $warnings[] = "{$message} (" . basename($file) . ":{$line})";
+                        }
+
+                        return is_callable($previous) ? (bool) $previous($level, $message, $file, $line) : true;   // reported here, not printed
+                    }, E_WARNING | E_NOTICE | E_USER_WARNING | E_USER_NOTICE);
+                    try {
+                        $response = $send($request);
+                    } finally {
+                        restore_error_handler();
+                    }
                     $where = "{$method} {$route->path}";
+                    if ($warnings !== []) {
+                        $report->fail($where, $label, 'caused a PHP warning in the application: ' . implode('; ', array_unique($warnings)) . '. Check the type of what the request sends before using it.');
+                    }
                     if ($response === null) {
                         $report->fail($where, $label, 'the kernel threw instead of answering.');
                     } elseif ($response->getStatusCode() >= 500) {

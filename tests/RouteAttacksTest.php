@@ -106,6 +106,25 @@ final class RouteAttacksTest extends TestCase
         $this->assertContains(['route' => 'POST /tokens', 'attack' => 'repeated requests', 'detail' => '4 of 4 requests reached the handler; #[RateLimit] allows 3.'], $report->failures);
     }
 
+    public function testAWarningOnHostileInputFails(): void
+    {
+        // Found on Siyati web: a list cast to a string, which PHP only warns about.
+        $app = $this->app(static function (Router $r): void {
+            $r->get('/hello', #[PublicRoute(reason: 'Greeting')] static fn (ServerRequestInterface $request): string => 'Hello ' . strval($request->getQueryParams()['name'] ?? 'you'));
+        });
+        set_error_handler(static fn (): bool => true);   // the warning is the point: keep it from PHPUnit
+        try {
+            $report = (new RouteAttacks($app))->run();
+        } finally {
+            restore_error_handler();
+        }
+
+        $warnings = array_values(array_filter($report->failures, static fn (array $f): bool => str_contains($f['detail'], 'caused a PHP warning')));
+        $this->assertNotSame([], $warnings, $report->describe());
+        $this->assertSame('a list where a value is expected', $warnings[0]['attack']);
+        $this->assertStringContainsString('Array to string conversion (RouteAttacksTest.php:', $warnings[0]['detail']);
+    }
+
     public function testARouteThatFailsAnOrdinaryRequestIsReportedOnce(): void
     {
         // Found on Siyati: a webhook that answers 500 for a provider it does not know, whatever the body.

@@ -208,6 +208,12 @@ final class RouteAttacks
             // Hostile input, with the handler running: anyone may send it.
             $probe->stop = false;
             foreach ($methods as $method) {
+                // An ordinary request first: if it already fails, hostile input is not the cause.
+                $ordinary = $send(in_array($method, ['GET', 'DELETE'], true) ? self::request($method, $path) : self::form($method, $path, []));
+                if ($ordinary === null || $ordinary->getStatusCode() >= 500) {
+                    $report->fail("{$method} {$route->path}", 'an ordinary request', ($ordinary === null ? 'the kernel threw' : "answered {$ordinary->getStatusCode()}") . " to {$method} {$path}, before any hostile input. A value in its path that the application does not know should be answered with a 4xx, such as 404, not a server error.");
+                    continue;
+                }
                 foreach (self::hostile($method, $path) as $label => $request) {
                     $response = $send($request);
                     $where = "{$method} {$route->path}";

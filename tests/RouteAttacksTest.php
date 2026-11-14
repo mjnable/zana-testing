@@ -106,6 +106,20 @@ final class RouteAttacksTest extends TestCase
         $this->assertContains(['route' => 'POST /tokens', 'attack' => 'repeated requests', 'detail' => '4 of 4 requests reached the handler; #[RateLimit] allows 3.'], $report->failures);
     }
 
+    public function testARouteThatFailsAnOrdinaryRequestIsReportedOnce(): void
+    {
+        // Found on Siyati: a webhook that answers 500 for a provider it does not know, whatever the body.
+        $report = (new RouteAttacks($this->app(static function (Router $r): void {
+            $r->post('/notifications/{provider}', #[PublicRoute(reason: 'Payment notices')] static function (string $provider): string {
+                throw new \RuntimeException("The payment provider {$provider} is not configured.");
+            });
+        })))->run();
+
+        $this->assertCount(1, $report->failures, $report->describe());
+        $this->assertSame('an ordinary request', $report->failures[0]['attack']);
+        $this->assertStringContainsString('answered 500 to POST /notifications/1, before any hostile input', $report->failures[0]['detail']);
+    }
+
     public function testTheRoutesAreLeftAsTheyWere(): void
     {
         $app = $this->app(static fn (Router $r) => $r->get('/me', #[RequiresAuthentication] static fn (): string => 'private')->middleware(AuthorizationMiddleware::class));

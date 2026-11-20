@@ -183,6 +183,38 @@ abstract class ApplicationTestCase extends TestCase
         return $report;
     }
 
+    /**
+     * One user must not reach another's records (2.27): see RecordAttacks.
+     * For every route with a parameter named in $records, the other user is
+     * refused (401, 403 or 404) and the owner gets through, on a fresh record
+     * each time:
+     *
+     *     $this->assertRecordsStayWithTheirOwners(
+     *         owner: fn (ServerRequestInterface $r) => $r->withHeader('Authorization', "Bearer {$ada}"),
+     *         other: fn (ServerRequestInterface $r) => $r->withHeader('Authorization', "Bearer {$grace}"),
+     *         records: ['id' => fn (): int => $this->orderOf('ada')],
+     *         writes: true,
+     *     );
+     *
+     * @param \Closure(\Psr\Http\Message\ServerRequestInterface): \Psr\Http\Message\ServerRequestInterface $owner
+     * @param \Closure(\Psr\Http\Message\ServerRequestInterface): \Psr\Http\Message\ServerRequestInterface $other
+     * @param array<string, \Closure(): (int|string|array<string, int|string>)> $records By route parameter, a fresh record of the owner's
+     * @param array<string, string> $except Routes left out, each with the reason, which the report shows
+     * @param bool $writes POST, PUT, PATCH and DELETE too, not only GET
+     * @param array<string, array<string, mixed>> $bodies By route, a body the owner's write succeeds with, e.g. "PUT /orders/{id}" => [...]
+     * @param bool $json Ask as an API client: JSON answers, and JSON bodies
+     */
+    protected function assertRecordsStayWithTheirOwners(\Closure $owner, \Closure $other, array $records, array $except = [], bool $writes = false, array $bodies = [], bool $json = false): Security\AttackReport
+    {
+        $report = (new Security\RecordAttacks($this->app(), $owner, $other, $records))->except($except)->writes($writes)->bodies($bodies)->json($json)->run();
+        $this->addToAssertionCount($report->requests);
+        if (!$report->passed()) {
+            Assert::fail($report->describe());
+        }
+
+        return $report;
+    }
+
     protected function assertNoMailSent(): void
     {
         Assert::assertSame(0, $this->mail()->count(), 'Expected no message, sent: ' . self::subjects($this->mail()->sent()));

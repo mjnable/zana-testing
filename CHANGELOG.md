@@ -3,6 +3,26 @@
 All Zana packages share one version number and are released together. A release that did
 not change this package is not listed.
 
+## 2.27.0 — Unreleased
+
+### Added
+
+- `assertRecordsStayWithTheirOwners()` in `ApplicationTestCase`, and `Security\RecordAttacks`: one user must not reach
+  another's records, the attack 2.22 left to the application, because only it knows who owns what. It says so with
+  two sign-ins, `owner` and `other`, and `records`, by route parameter, functions that make a fresh record of the
+  owner's and give its id, or the ids of several parameters. For every route with a parameter named there, on a fresh
+  record each time:
+  - the other user asks first and must be refused, with 401, 403 or 404: a page that shows the record, a change, or a
+    redirect after one, fails;
+  - the owner asks after and must get through, so the refusal is known to be about the owner. When the owner gets
+    through on no route, the run fails: it proved nothing.
+- `writes: true` tries POST, PUT, PATCH and DELETE too, with a valid CSRF token when mj-zana/security issues them.
+  `bodies`, by route, gives a write input the owner's request succeeds with: when both users get the same 400 or 422,
+  the application checked the input before the owner, and the route is reported as not proven; a 400 or 422 that only
+  the other user gets fails. `json: true` asks as an API client: JSON answers, JSON bodies, the CSRF token in
+  `X-CSRF-Token`. `except` leaves a route out, with the reason.
+- Public routes are tried as well: a public page can leak a record too.
+
 ## 2.22.0 — 2026-11-14
 
 ### Added

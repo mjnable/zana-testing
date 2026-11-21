@@ -3,6 +3,20 @@
 All Zana packages share one version number and are released together. A release that did
 not change this package is not listed.
 
+## 2.30.0 — Unreleased
+
+### Added
+
+- A declared shared kernel (FE-76, ADR-034): `ModuleRules::sharedKernel('Modules\Shared\Contracts')` lets every layer
+  of every module use one module's Contracts, Domain and Contracts included, for values such as money or a clock.
+  The kernel itself may depend only on plain PHP, `Zana\Ddd` and the other kernels, so it stays a set of values; its
+  implementations live in its module's Infrastructure. Only a module's Contracts can be the kernel: another layer,
+  part of a Contracts namespace or an unknown module is refused, with the reason. Another module's Contracts are
+  still refused in a Domain.
+- `ModuleRules::forApplication($app)`: the application's modules and `architecture.shared_kernel`, as `check` reads
+  them, so an application's own architecture test and `check` agree. `kernel()` and `emptyKernel()` (a kernel whose
+  module has no Contracts directory).
+
 ## 2.27.0 — 2026-11-21
 
 ### Added
